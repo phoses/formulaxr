@@ -45,5 +45,8 @@ private:
 	AFXRTrack* FindTrack();
 	void SetupPC();
 	void SetupMixedReality();
+	/** Hide the PC room; show the lap tower, track grounding shadow and car soft shadows. */
+	void ShowMixedRealityLook();
+	void SpawnPreviewFloor();
 	void ShowPassthrough(bool bVisible);
 };

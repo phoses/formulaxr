@@ -5,19 +5,25 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 bool UFXRModeSubsystem::IsMixedReality() const
 {
 	return GEngine && GEngine->XRSystem.IsValid() && UHeadMountedDisplayFunctionLibrary::IsHeadMountedDisplayEnabled();
 }
 
-void UFXRModeSubsystem::ApplyModeVisibility(UWorld* World) const
+bool UFXRModeSubsystem::IsMixedRealityPreview()
+{
+	return FParse::Param(FCommandLine::Get(), TEXT("FXRMRPreview"));
+}
+
+void UFXRModeSubsystem::SetPCOnlyHidden(UWorld* World, bool bHide) const
 {
 	if (!World)
 	{
 		return;
 	}
-	const bool bHide = IsMixedReality();
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;

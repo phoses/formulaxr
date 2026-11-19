@@ -6,6 +6,10 @@
 #include "EngineUtils.h"
 #include "FXRModeSubsystem.h"
 #include "FXRSaveGame.h"
+#include "FXRSlotCar.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "FXRTrack.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -85,6 +89,55 @@ void AFXRPlayerPawn::BeginPlay()
 	else
 	{
 		SetupPC();
+		if (UFXRModeSubsystem::IsMixedRealityPreview())
+		{
+			ShowMixedRealityLook();
+			SpawnPreviewFloor();
+		}
+	}
+}
+
+void AFXRPlayerPawn::ShowMixedRealityLook()
+{
+	if (const UFXRModeSubsystem* Mode = GetGameInstance()->GetSubsystem<UFXRModeSubsystem>())
+	{
+		Mode->SetPCOnlyHidden(GetWorld(), true);
+	}
+	if (AFXRTrack* T = FindTrack())
+	{
+		T->ShowLapTower();
+		T->ShowGroundingShadow();
+	}
+	for (TActorIterator<AFXRSlotCar> It(GetWorld()); It; ++It)
+	{
+		It->EnableSoftShadow();
+	}
+}
+
+void AFXRPlayerPawn::SpawnPreviewFloor()
+{
+	// Stand-in for the real table under the track, a neutral grey a little like a desk surface.
+	const AFXRTrack* T = FindTrack();
+	UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+	if (!T || !Plane)
+	{
+		return;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AStaticMeshActor* Floor = GetWorld()->SpawnActor<AStaticMeshActor>(T->GetActorLocation() - FVector(0, 0, 0.1f), T->GetActorRotation(), Params);
+	Floor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
+	Floor->GetStaticMeshComponent()->SetStaticMesh(Plane);
+	Floor->GetStaticMeshComponent()->SetMaterial(0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/FormulaXR/Materials/MI_TableLeg.MI_TableLeg")));
+	Floor->GetStaticMeshComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Floor->SetActorScale3D(FVector(8.0f, 6.0f, 1.0f));
+	// A light grey version of the solid material.
+	if (UMaterialInterface* Base = Floor->GetStaticMeshComponent()->GetMaterial(0))
+	{
+		UMaterialInstanceDynamic* Grey = UMaterialInstanceDynamic::Create(Base, Floor);
+		Grey->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.35f, 0.34f));
+		Grey->SetScalarParameterValue(TEXT("Roughness"), 0.8f);
+		Floor->GetStaticMeshComponent()->SetMaterial(0, Grey);
 	}
 }
 
@@ -120,10 +173,7 @@ void AFXRPlayerPawn::SetupMixedReality()
 	Camera->bLockToHmd = true;
 	UHeadMountedDisplayFunctionLibrary::SetTrackingOrigin(EHMDTrackingOrigin::LocalFloor);
 	ShowPassthrough(true);
-	if (AFXRTrack* T = FindTrack())
-	{
-		T->ShowLapTower();
-	}
+	ShowMixedRealityLook();
 }
 
 void AFXRPlayerPawn::EndPlay(const EEndPlayReason::Type Reason)

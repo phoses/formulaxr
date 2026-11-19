@@ -21,5 +21,14 @@ public:
 	bool IsMixedReality() const;
 
 	/** Hides everything tagged PCOnly in mixed reality; shows it in PC mode. */
-	void ApplyModeVisibility(UWorld* World) const;
+	void ApplyModeVisibility(UWorld* World) const { SetPCOnlyHidden(World, IsMixedReality()); }
+
+	/** Hides or shows everything tagged PCOnly (the -FXRMRPreview mode hides it on a PC). */
+	void SetPCOnlyHidden(UWorld* World, bool bHide) const;
+
+	/**
+	 * -FXRMRPreview: the mixed reality look on the monitor (no PC room, soft shadows, lap tower) over
+	 * a grey stand-in floor, so MR visuals can be checked with screenshots without a headset.
+	 */
+	static bool IsMixedRealityPreview();
 };

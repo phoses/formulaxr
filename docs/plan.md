@@ -334,6 +334,13 @@ if exist "%ROOT%Build\Windows\FormulaXR.exe" (
 - **Playtest data:** player laps of 2.0–2.3 s (best 1.91 s) were checked in the logs and are genuine.
 - **Mixed reality:** `launch-vr.bat` with the packaged build is confirmed in the Quest 3: passthrough works and the lap tower shows the race.
 
+**Phase 6 is done.** The grounding shadows are confirmed in the Quest 3 over a real table.
+- **No shadow catcher:** Unreal has no built-in one, so grounding is faked with `M_SoftShadow`. It's translucent unlit black with opacity = vertex alpha × `Strength`, drawn on procedural meshes (`FXRSoftShadow`).
+- **Track:** a 6 cm soft band along both track edges, starting 0.5 cm under the track so no seam shows.
+- **Cars:** each car has a soft shadow on the track plane that follows it, including off the track. It grows and fades with height while the car tumbles. In mixed reality this replaces the cars' light-cast shadows, so they look the same on and off the track.
+- **Strength:** measured from screenshots. Translucent darkening reads far weaker after tone mapping than its alpha suggests, so both use full strength.
+- **`-FXRMRPreview`:** shows the mixed reality look on the monitor over a grey stand-in floor, so MR visuals (shadows, lap tower) can be checked by screenshot without a headset. Use it with `-FXRCam=0,190,110` to view from the player's side.
+
 Passthrough is already proven on this PC, so Phase 0 only checks that the copied plugin and settings work in this project. Both launchers exist from Phase 0 on, so every later phase can be tested in both modes.
 
 ## 11. Risks

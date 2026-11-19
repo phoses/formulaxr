@@ -3,6 +3,8 @@
 #include "Components/BoxComponent.h"
 #include "Components/WidgetComponent.h"
 #include "FXRHudWidget.h"
+#include "FXRSoftShadow.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "DrawDebugHelpers.h"
 #include "FXRModeSubsystem.h"
 #include "HAL/IConsoleManager.h"
@@ -275,6 +277,63 @@ void AFXRTrack::ShowLapTower()
 	LapTower->SetRelativeLocation(FVector(0.0f, -HalfExtent.Y - 5.0f, 0.5f * 700.0f * PixelScale + 2.0f));
 	LapTower->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
 	LapTower->RegisterComponent();
+}
+
+void AFXRTrack::ShowGroundingShadow()
+{
+	UMaterialInterface* Material = FXRSoftShadow::LoadMaterial();
+	if (GroundingShadow || !Material)
+	{
+		return;
+	}
+	// A band either side of the track: darkest at the track edge, fading out over a few cm.
+	// Drawn just below the surface, so where it passes under the other straight at the crossover
+	// the track hides it.
+	// Measured in the MR preview: after tone mapping, translucent darkening reads much weaker than
+	// its alpha suggests, so this is deliberately strong.
+	constexpr float Width = 6.0f;
+	constexpr float EdgeAlpha = 0.9f;
+	constexpr float Z = -0.02f;
+	const float HalfWidth = 0.5f * LaneSpacing + FXRTrackLook::EdgeMargin;
+	TArray<FVector> Vertices;
+	TArray<FLinearColor> Colors;
+	TArray<int32> Triangles;
+	const double Lap = Centreline.GetLength();
+	const int32 Steps = FMath::CeilToInt(Lap / 2.0);
+	for (const float Side : { -1.0f, 1.0f })
+	{
+		const int32 Base = Vertices.Num();
+		for (int32 Step = 0; Step <= Steps; ++Step)
+		{
+			const FFXRPathSample Sample = Centreline.Sample(Lap * Step / Steps);
+			const FVector2D Normal = Sample.LeftNormal() * Side;
+			// Starts half a centimetre under the track so no hairline gap shows between track and shadow.
+			const FVector2D Inner = Sample.Location + Normal * (HalfWidth - 0.5f);
+			const FVector2D Outer = Sample.Location + Normal * (HalfWidth + Width);
+			Vertices.Add(FVector(Inner.X, Inner.Y, Z));
+			Colors.Add(FLinearColor(0, 0, 0, EdgeAlpha));
+			Vertices.Add(FVector(Outer.X, Outer.Y, Z));
+			Colors.Add(FLinearColor(0, 0, 0, 0.0f));
+			if (Step > 0)
+			{
+				const int32 A = Base + 2 * (Step - 1), B = A + 1, C = A + 2, D = A + 3;
+				Triangles.Append({ A, C, B, B, C, D });   // two-sided material, so winding doesn't matter
+			}
+		}
+	}
+	TArray<FVector> Normals;
+	Normals.Init(FVector::UpVector, Vertices.Num());
+	TArray<FVector2D> UVs;
+	UVs.Init(FVector2D::ZeroVector, Vertices.Num());
+
+	GroundingShadow = NewObject<UProceduralMeshComponent>(this, TEXT("GroundingShadow"));
+	GroundingShadow->SetupAttachment(Root);
+	FXRSoftShadow::ConfigureComponent(GroundingShadow);
+	GroundingShadow->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, Colors, TArray<FProcMeshTangent>(), false);
+	UMaterialInstanceDynamic* Strong = UMaterialInstanceDynamic::Create(Material, this);
+	Strong->SetScalarParameterValue(TEXT("Strength"), 1.0f);
+	GroundingShadow->SetMaterial(0, Strong);
+	GroundingShadow->RegisterComponent();
 }
 
 FVector AFXRTrack::TrackToWorld(const FVector2D& TrackLocation, float Height) const

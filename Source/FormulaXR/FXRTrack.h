@@ -75,6 +75,9 @@ public:
 	/** Mixed reality: the race HUD on a board standing behind the far side of the track, facing the player. */
 	void ShowLapTower();
 
+	/** Mixed reality: a soft shadow band along both track edges so the track sits on the real table. */
+	void ShowGroundingShadow();
+
 	virtual void Tick(float DeltaSeconds) override;
 
 protected:
@@ -98,6 +101,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UWidgetComponent> LapTower;
+
+	UPROPERTY()
+	TObjectPtr<UProceduralMeshComponent> GroundingShadow;
 
 	bool bBuilt = false;
 	FFXRFigure8Path Centreline;

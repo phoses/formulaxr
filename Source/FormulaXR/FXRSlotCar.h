@@ -9,6 +9,7 @@ class AFXRTrack;
 class UBoxComponent;
 class UFXRCarPreset;
 class UFXRSlotCarTuning;
+class UMaterialInstanceDynamic;
 class UProceduralMeshComponent;
 class UStaticMeshComponent;
 
@@ -60,6 +61,12 @@ public:
 	 */
 	bool IsRejoining() const;
 
+	/**
+	 * Mixed reality: a soft shadow under the car on the track plane, which also covers the real table
+	 * when the car flies off. Replaces the car's own shadow so both look the same.
+	 */
+	void EnableSoftShadow();
+
 	/** Fired when the guide pin crosses the start/finish line. */
 	FFXRSlotCarEvent OnLineCrossed;
 	/** Fired when the car leaves its slot. */
@@ -97,6 +104,13 @@ private:
 	UPROPERTY()
 	TObjectPtr<UFXRCarPreset> Preset;
 
+	/** Mixed reality soft shadow; null until EnableSoftShadow. */
+	UPROPERTY()
+	TObjectPtr<UProceduralMeshComponent> SoftShadow;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> SoftShadowMaterial;
+
 	TWeakObjectPtr<AFXRTrack> Track;
 	int32 Lane = 0;
 	FFXRSlotCarModel Model;
@@ -109,6 +123,7 @@ private:
 
 	/** Half the car's length and its ride height (chassis centre above the track), from the mesh, cm. */
 	float HalfLength = 5.6f;
+	float HalfWidth = 3.25f;
 	float HalfHeight = 2.17f;
 	/** Rolling radius at slot scale, cm; 0 when the wheels don't spin. */
 	float WheelRadius = 0.0f;
@@ -117,6 +132,7 @@ private:
 	void ApplyPreset();
 	bool BuildSpinningWheels(const FTransform& MeshToChassis);
 	void SpinWheels(float DeltaSeconds);
+	void UpdateSoftShadow();
 	void UpdateTransformOnTrack();
 	void Deslot();
 	void Marshal();

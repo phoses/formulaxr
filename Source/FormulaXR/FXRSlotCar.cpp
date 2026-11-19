@@ -6,6 +6,8 @@
 #include "Engine/StaticMesh.h"
 #include "FXRCarPreset.h"
 #include "FXRSlotCarTuning.h"
+#include "FXRSoftShadow.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "FXRTrack.h"
 #include "HAL/IConsoleManager.h"
 #include "KismetProceduralMeshLibrary.h"
@@ -89,6 +91,7 @@ void AFXRSlotCar::ApplyPreset()
 	const FBox CarBounds = MeshBounds.TransformBy(FTransform(MeshRotation, FVector::ZeroVector, MeshScale));
 	Chassis->SetBoxExtent(CarBounds.GetExtent());
 	HalfLength = CarBounds.GetExtent().X;
+	HalfWidth = CarBounds.GetExtent().Y;
 	HalfHeight = CarBounds.GetExtent().Z;
 	const FTransform MeshToChassis(MeshRotation, -CarBounds.GetCenter(), MeshScale);
 
@@ -193,6 +196,63 @@ void AFXRSlotCar::SpinWheels(float DeltaSeconds)
 	}
 }
 
+void AFXRSlotCar::EnableSoftShadow()
+{
+	if (SoftShadow)
+	{
+		return;
+	}
+	UMaterialInterface* Material = FXRSoftShadow::LoadMaterial();
+	if (!Material)
+	{
+		return;
+	}
+	SoftShadow = NewObject<UProceduralMeshComponent>(this, TEXT("SoftShadow"));
+	SoftShadow->SetupAttachment(Chassis);
+	// Placed in world space every frame: it stays flat on the track plane while the car tumbles.
+	SoftShadow->SetUsingAbsoluteLocation(true);
+	SoftShadow->SetUsingAbsoluteRotation(true);
+	SoftShadow->SetUsingAbsoluteScale(true);
+	FXRSoftShadow::ConfigureComponent(SoftShadow);
+	FXRSoftShadow::BuildDisc(SoftShadow);
+	SoftShadowMaterial = UMaterialInstanceDynamic::Create(Material, this);
+	SoftShadow->SetMaterial(0, SoftShadowMaterial);
+	SoftShadow->RegisterComponent();
+
+	// The soft shadow replaces the car's light-cast shadow, so on and off the track look alike.
+	TInlineComponentArray<UPrimitiveComponent*> Parts(this);
+	for (UPrimitiveComponent* Part : Parts)
+	{
+		if (Part != SoftShadow)
+		{
+			Part->SetCastShadow(false);
+		}
+	}
+	UpdateSoftShadow();
+}
+
+void AFXRSlotCar::UpdateSoftShadow()
+{
+	const AFXRTrack* T = Track.Get();
+	if (!SoftShadow || !T)
+	{
+		return;
+	}
+	// Straight down onto the track plane (the board surface, or the real table in mixed reality).
+	const FTransform TrackTransform = T->GetActorTransform();
+	const FVector Local = TrackTransform.InverseTransformPosition(GetActorLocation());
+	const float Height = FMath::Max(0.0f, float(Local.Z) - HalfHeight);
+	// Higher up: larger, fainter. On the slot (Height ~0) it is a tight contact shadow.
+	// Strong on purpose: translucent darkening reads much weaker after tone mapping (MR preview measurement).
+	const float Spread = 1.0f + Height * 0.03f;
+	const float Strength = 1.0f * FMath::Clamp(1.0f - Height / 40.0f, 0.0f, 1.0f);
+	const float Yaw = GetActorRotation().Yaw;
+	SoftShadow->SetWorldLocationAndRotation(TrackTransform.TransformPosition(FVector(Local.X, Local.Y, 0.08)), FRotator(0.0f, Yaw, 0.0f));
+	SoftShadow->SetWorldScale3D(FVector(HalfLength * 1.3f * Spread, HalfWidth * 1.5f * Spread, 1.0f));
+	SoftShadowMaterial->SetScalarParameterValue(TEXT("Strength"), Strength);
+	SoftShadow->SetVisibility(Strength > 0.01f);
+}
+
 void AFXRSlotCar::PlaceOnLane(double Distance)
 {
 	StopPhysics();
@@ -267,6 +327,7 @@ void AFXRSlotCar::Tick(float DeltaSeconds)
 		}
 	}
 
+	UpdateSoftShadow();
 	if (CVarShowCarDebug.GetValueOnGameThread() != 0)
 	{
 		ShowDebug();
