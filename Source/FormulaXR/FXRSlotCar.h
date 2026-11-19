@@ -9,7 +9,10 @@ class AFXRTrack;
 class UBoxComponent;
 class UFXRCarPreset;
 class UFXRSlotCarTuning;
+class UAudioComponent;
 class UMaterialInstanceDynamic;
+class USoundAttenuation;
+class USoundBase;
 class UProceduralMeshComponent;
 class UStaticMeshComponent;
 
@@ -104,6 +107,20 @@ private:
 	UPROPERTY()
 	TObjectPtr<UFXRCarPreset> Preset;
 
+	/** Motor whine: a looping sound whose pitch and volume follow speed, placed at the car (3D). */
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UAudioComponent> MotorAudio;
+
+	UPROPERTY()
+	TObjectPtr<USoundBase> DeslotSound;
+
+	/** Small-scale 3D falloff shared by the car's sounds (built in code, no asset). */
+	UPROPERTY()
+	TObjectPtr<USoundAttenuation> Attenuation;
+
+	float MotorPitch = 0.55f;
+	float MotorVolume = 0.0f;
+
 	/** Mixed reality soft shadow; null until EnableSoftShadow. */
 	UPROPERTY()
 	TObjectPtr<UProceduralMeshComponent> SoftShadow;
@@ -133,6 +150,8 @@ private:
 	bool BuildSpinningWheels(const FTransform& MeshToChassis);
 	void SpinWheels(float DeltaSeconds);
 	void UpdateSoftShadow();
+	void SetupAudio();
+	void UpdateMotorAudio(float DeltaSeconds);
 	void UpdateTransformOnTrack();
 	void Deslot();
 	void Marshal();

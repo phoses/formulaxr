@@ -93,7 +93,7 @@ latAcc  = v² · |curvature(s)|
 |---|---|---|---|---|
 | `IA_ThrottleCar1` | Left Trigger Axis | float | both | Car 1 power |
 | `IA_ThrottleCar2` | Right Trigger Axis | float | both | Car 2 power |
-| `IA_TrackHeight` | Right Thumbstick Y | float, dead zone 0.2 | both | Move track up/down at ±30 cm/s, clamped to [−50, +150] cm from the default height |
+| `IA_TrackHeight` | Right Thumbstick Y | float, dead zone 0.2 | both | Move track up/down: squared stick response, up to ±75 cm/s, clamped to [−150, +150] cm from the 75 cm default (floor and below). Widened after a playtest: the old −50 cm limit kept the track off the floor |
 | `IA_Recenter` | Right Thumbstick press | bool | MR only | Re-center the track in front of the player |
 | `IA_Restart` | Special Right (Menu) | bool | both | Restart race |
 | `IA_ToggleMode` | Special Left (View) | bool | both | Race ↔ Practice |
@@ -125,7 +125,7 @@ latAcc  = v² · |curvature(s)|
 - **C++ project** (`FormulaXR.uproject`, module `FormulaXR`). Logic lives in C++ text files, not binary Blueprints, which makes it reviewable, diffable and practical for an AI coding agent to write. Blueprints are used only for thin data/asset subclasses where convenient.
 - Builds with the VS 2022 Build Tools already installed (§3); no IDE needed.
 - **Editor Python scripts** (`Scripts/`, run via `UnrealEditor-Cmd.exe -run=pythonscript`) handle repeatable asset setup: create the map, the tuning data asset, and car presets that point at the Fab meshes.
-- **Rendering:** starts from the proven passthrough setup (deferred renderer, TSR, `PropagateAlpha`), with Lumen off. Switching to forward shading + MSAA is a Phase 7 performance option, kept only if passthrough still works with it.
+- **Rendering:** deferred renderer with `PropagateAlpha` for passthrough, Lumen off, **TAA** (not TSR) and no SSAO, both chosen by measurement in Phase 7. That gives ~3.2 ms GPU at Quest 3 stereo resolution on this PC.
 - **Performance target:** 90 Hz in MR (≤ 11 ms frame), 60+ fps in PC mode.
 
 ### 5.1 Plugins
@@ -335,6 +335,18 @@ if exist "%ROOT%Build\Windows\FormulaXR.exe" (
 - **Mixed reality:** `launch-vr.bat` with the packaged build is confirmed in the Quest 3: passthrough works and the lap tower shows the race.
 
 **Phase 6 is done.** The grounding shadows are confirmed in the Quest 3 over a real table.
+
+**Phase 7 is done.** Sound, passthrough with TAA, and the wider track-height range are confirmed in the Quest 3. **All planned phases are complete.**
+- **Sound:** all sounds are our own, synthesised by `Scripts/generate_sounds.py` (standard library only) and imported by `Scripts/import_sounds.ps1` to `/Game/FormulaXR/Audio`:
+  - Each car has a 3D motor whine loop. Pitch goes 0.55→1.9× with speed (car 2 is 8% higher so the two can be told apart by ear), volume follows speed and trigger, and it falls silent while the car is off.
+  - A crash plays a plastic clatter at the car, louder the faster it went off.
+  - There's a beep per start light, a higher "go" tone at lights out, and a chime at the finish.
+  - Falloff is sized for a table: full volume within 40 cm, silent at 4 m.
+- **Performance (90 Hz):** `-FXRPerfLog` logs frame, game, render and GPU time. I measured the MR preview at the Quest 3 stereo pixel count (2064×1104 at 200% ≈ 9 Mpx) on the RTX 4070, editor build, with both cars racing.
+  - Baseline: 15.4 ms GPU, over the 11.1 ms budget. TSR cost ~8 ms and SSAO ~4 ms; virtual shadows and SSR cost almost nothing.
+  - Now: **TAA instead of TSR, and SSAO off: 3.2 ms GPU (worst 4.4 ms), 1.3 ms game thread.**
+  - Risk: passthrough alpha was proven with TSR. If it breaks with TAA, use FXAA (`r.AntiAliasingMethod=1`).
+- **Tuning:** the driving numbers are unchanged. The playtested feel was approved, and player laps of 2.0–2.3 s show the speed range works.
 - **No shadow catcher:** Unreal has no built-in one, so grounding is faked with `M_SoftShadow`. It's translucent unlit black with opacity = vertex alpha × `Strength`, drawn on procedural meshes (`FXRSoftShadow`).
 - **Track:** a 6 cm soft band along both track edges, starting 0.5 cm under the track so no seam shows.
 - **Cars:** each car has a soft shadow on the track plane that follows it, including off the track. It grows and fades with height while the car tumbles. In mixed reality this replaces the cars' light-cast shadows, so they look the same on and off the track.

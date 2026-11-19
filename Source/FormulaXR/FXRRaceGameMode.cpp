@@ -10,6 +10,10 @@
 #include "Engine/TextureCube.h"
 #include "Engine/World.h"
 #include "FXRCarPreset.h"
+#include "Kismet/GameplayStatics.h"
+#include "RenderCore.h"
+#include "RHI.h"
+#include "Sound/SoundBase.h"
 #include "FXRModeSubsystem.h"
 #include "FXRPlayerController.h"
 #include "FXRPlayerPawn.h"
@@ -37,7 +41,12 @@ void AFXRRaceGameMode::StartPlay()
 	SpawnStage();
 	Super::StartPlay();
 
+	LightBeep = LoadObject<USoundBase>(nullptr, TEXT("/Game/FormulaXR/Audio/SW_LightBeep.SW_LightBeep"));
+	GoBeep = LoadObject<USoundBase>(nullptr, TEXT("/Game/FormulaXR/Audio/SW_GoBeep.SW_GoBeep"));
+	FinishChime = LoadObject<USoundBase>(nullptr, TEXT("/Game/FormulaXR/Audio/SW_Finish.SW_Finish"));
+
 	FParse::Value(FCommandLine::Get(), TEXT("FXRLaps="), RaceLaps);
+	bPerfLog = FParse::Param(FCommandLine::Get(), TEXT("FXRPerfLog"));
 	NextMode = FParse::Param(FCommandLine::Get(), TEXT("FXRPractice")) ? EFXRRaceMode::Practice : EFXRRaceMode::Race;
 	StartSession();
 
@@ -178,9 +187,20 @@ void AFXRRaceGameMode::ToggleMode()
 void AFXRRaceGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (Race.Tick(DeltaSeconds) && Race.Phase == EFXRRacePhase::Racing)
+	if (Race.Tick(DeltaSeconds) && Race.Phase == EFXRRacePhase::Racing && Race.Mode == EFXRRaceMode::Race)
 	{
 		UE_LOG(LogFXRGame, Log, TEXT("Lights out - go!"));
+		PlayRaceSound(GoBeep);
+	}
+	const int32 Lit = Race.LightsLit();
+	if (Lit > LastLightsLit)
+	{
+		PlayRaceSound(LightBeep);
+	}
+	LastLightsLit = Lit;
+	if (bPerfLog)
+	{
+		UpdatePerfLog(DeltaSeconds);
 	}
 	for (const TWeakObjectPtr<AFXRSlotCar>& Car : Cars)
 	{
@@ -256,6 +276,7 @@ void AFXRRaceGameMode::CheckCrossover()
 
 void AFXRRaceGameMode::OnRaceFinished()
 {
+	PlayRaceSound(FinishChime);
 	const float Total = float(Race.RaceTime());
 	bNewRecord = RecordBefore <= 0.0f || Total < RecordBefore;
 	UE_LOG(LogFXRGame, Log, TEXT("Race finished: %.3f s for %d laps%s"), Total, Race.TargetLaps, bNewRecord ? TEXT(" - new record!") : TEXT(""));
@@ -263,6 +284,33 @@ void AFXRRaceGameMode::OnRaceFinished()
 	{
 		const int32 Laps = Race.TargetLaps;
 		UFXRSaveGame::Update([Laps, Total](UFXRSaveGame& Save) { Save.BestRaceTimes.Add(Laps, Total); });
+	}
+}
+
+void AFXRRaceGameMode::UpdatePerfLog(float DeltaSeconds)
+{
+	const double Gpu = FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+	Perf.Frame += DeltaSeconds * 1000.0;
+	Perf.Game += FPlatformTime::ToMilliseconds(GGameThreadTime);
+	Perf.Render += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+	Perf.Gpu += Gpu;
+	Perf.MaxGpu = FMath::Max(Perf.MaxGpu, Gpu);
+	++Perf.Frames;
+	Perf.Elapsed += DeltaSeconds;
+	if (Perf.Elapsed >= 2.0)
+	{
+		const double N = Perf.Frames;
+		UE_LOG(LogFXRGame, Log, TEXT("Perf: frame %.2f ms (%.0f fps)  game %.2f  render %.2f  GPU %.2f (max %.2f) ms"),
+			Perf.Frame / N, 1000.0 * N / Perf.Frame, Perf.Game / N, Perf.Render / N, Perf.Gpu / N, Perf.MaxGpu);
+		Perf = FPerfWindow();
+	}
+}
+
+void AFXRRaceGameMode::PlayRaceSound(USoundBase* Sound) const
+{
+	if (Sound)
+	{
+		UGameplayStatics::PlaySound2D(this, Sound, 0.6f);
 	}
 }
 

@@ -20,8 +20,12 @@
 
 namespace
 {
-	/** Full right stick deflection moves the track this fast, cm/s. */
-	constexpr float TrackHeightSpeed = 30.0f;
+	/**
+	 * Full right stick deflection moves the track this fast, cm/s. The response is squared, so a
+	 * small push gives fine control (lining up with a table edge) and full deflection crosses
+	 * from table to floor in about a second.
+	 */
+	constexpr float TrackHeightSpeed = 75.0f;
 	constexpr float StickDeadZone = 0.2f;
 }
 
@@ -149,7 +153,8 @@ void AFXRPlayerController::OnTrackHeight(const FInputActionValue& Value)
 {
 	if (AFXRPlayerPawn* FXRPawn = GetPawn<AFXRPlayerPawn>())
 	{
-		FXRPawn->AdjustTrackHeight(Value.Get<float>() * TrackHeightSpeed * GetWorld()->GetDeltaSeconds());
+		const float Stick = Value.Get<float>();
+		FXRPawn->AdjustTrackHeight(Stick * FMath::Abs(Stick) * TrackHeightSpeed * GetWorld()->GetDeltaSeconds());
 	}
 }
 

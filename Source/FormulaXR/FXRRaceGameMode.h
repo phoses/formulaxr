@@ -7,6 +7,7 @@
 
 class AFXRSlotCar;
 class AFXRTrack;
+class USoundBase;
 
 /**
  * Builds the scene at startup (lights, PC-only room, the track, two cars) and runs the race
@@ -58,6 +59,22 @@ private:
 
 	FString ShotPath;
 	FTimerHandle ShotTimer;
+
+	/** Race sounds (2D): a beep per start light, a higher one at lights out, a chime at the finish. */
+	UPROPERTY()
+	TObjectPtr<USoundBase> LightBeep;
+	UPROPERTY()
+	TObjectPtr<USoundBase> GoBeep;
+	UPROPERTY()
+	TObjectPtr<USoundBase> FinishChime;
+	int32 LastLightsLit = 0;
+
+	void PlayRaceSound(USoundBase* Sound) const;
+
+	/** -FXRPerfLog: averages of frame, game, render and GPU time, logged every 2 s. */
+	bool bPerfLog = false;
+	struct FPerfWindow { double Frame = 0, Game = 0, Render = 0, Gpu = 0, MaxGpu = 0; int32 Frames = 0; double Elapsed = 0; } Perf;
+	void UpdatePerfLog(float DeltaSeconds);
 
 	void SpawnStage();
 	void StartSession();

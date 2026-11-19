@@ -26,7 +26,11 @@ public:
 
 	/** Track surface height above the floor before the player adjusts it (a table), cm. */
 	static constexpr float DefaultHeight = 75.0f;
-	static constexpr float MinHeightOffset = -50.0f;
+	/**
+	 * Down to the floor and 75 cm beyond it (the headset's floor level isn't always calibrated
+	 * exactly), up to 2.25 m. Playtest: the old -50 cm limit kept the track off the floor.
+	 */
+	static constexpr float MinHeightOffset = -150.0f;
 	static constexpr float MaxHeightOffset = 150.0f;
 	static constexpr int32 NumLanes = 2;
 

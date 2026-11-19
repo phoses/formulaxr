@@ -30,6 +30,14 @@ Scripts\setup.ps1
 
 This builds the editor, imports the toy car (meshes, textures, red/blue materials) and creates the two car presets.
 
+## Sounds
+
+All sound effects are synthesised by the game's own script (no third-party audio). To regenerate and re-import them:
+
+```powershell
+Scripts\import_sounds.ps1
+```
+
 ## Tests
 
 ```powershell

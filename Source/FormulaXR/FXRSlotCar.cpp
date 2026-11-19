@@ -1,6 +1,10 @@
 #include "FXRSlotCar.h"
 
+#include "Components/AudioComponent.h"
 #include "Components/BoxComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundBase.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
@@ -56,6 +60,50 @@ AFXRSlotCar::AFXRSlotCar()
 		AxleWheels[Axle]->SetupAttachment(AxlePivots[Axle]);
 		AxleWheels[Axle]->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
+
+	MotorAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("MotorAudio"));
+	MotorAudio->SetupAttachment(Chassis);
+	MotorAudio->bAutoActivate = false;
+}
+
+void AFXRSlotCar::SetupAudio()
+{
+	// Falloff sized for a table-top track: full volume within 40 cm, fading out by 4 m.
+	Attenuation = NewObject<USoundAttenuation>(this);
+	Attenuation->Attenuation.bAttenuate = true;
+	Attenuation->Attenuation.bSpatialize = true;
+	Attenuation->Attenuation.AttenuationShape = EAttenuationShape::Sphere;
+	Attenuation->Attenuation.AttenuationShapeExtents = FVector(40.0f, 0.0f, 0.0f);
+	Attenuation->Attenuation.FalloffDistance = 400.0f;
+
+	MotorAudio->SetSound(LoadObject<USoundBase>(nullptr, TEXT("/Game/FormulaXR/Audio/SW_MotorLoop.SW_MotorLoop")));
+	MotorAudio->AttenuationSettings = Attenuation;
+	MotorAudio->SetVolumeMultiplier(0.0f);
+	DeslotSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/FormulaXR/Audio/SW_Deslot.SW_Deslot"));
+}
+
+void AFXRSlotCar::UpdateMotorAudio(float DeltaSeconds)
+{
+	if (!MotorAudio->Sound)
+	{
+		return;
+	}
+	if (!MotorAudio->IsPlaying())
+	{
+		MotorAudio->Play();   // started here rather than at spawn, once the world is running
+	}
+	const FFXRSlotCarParams& Params = GetParams();
+	const float SpeedRatio = FMath::Clamp(Model.Speed / Params.TopSpeed, 0.0f, 1.0f);
+	const float Throttle = bDriveEnabled ? Params.ShapeThrottle(TriggerInput) : 0.0f;
+	// Car 2 runs a little higher so the two motors can be told apart by ear.
+	const float Detune = Lane == 0 ? 1.0f : 1.08f;
+	const float TargetPitch = (0.55f + 1.35f * SpeedRatio) * Detune;
+	// Silent at rest; a motor under power is audible even before it gets going.
+	const float TargetVolume = State == EFXRSlotCarState::OnTrack ? FMath::Clamp(0.25f * Throttle + 1.1f * SpeedRatio, 0.0f, 1.0f) * 0.7f : 0.0f;
+	MotorPitch = FMath::FInterpTo(MotorPitch, TargetPitch, DeltaSeconds, 12.0f);
+	MotorVolume = FMath::FInterpTo(MotorVolume, TargetVolume, DeltaSeconds, State == EFXRSlotCarState::OnTrack ? 10.0f : 25.0f);
+	MotorAudio->SetPitchMultiplier(MotorPitch);
+	MotorAudio->SetVolumeMultiplier(MotorVolume);
 }
 
 const FFXRSlotCarParams& AFXRSlotCar::GetParams() const
@@ -70,6 +118,7 @@ void AFXRSlotCar::Setup(AFXRTrack* InTrack, int32 InLane, UFXRCarPreset* InPrese
 	Lane = InLane;
 	Preset = InPreset;
 	ApplyPreset();
+	SetupAudio();
 }
 
 void AFXRSlotCar::ApplyPreset()
@@ -328,6 +377,7 @@ void AFXRSlotCar::Tick(float DeltaSeconds)
 	}
 
 	UpdateSoftShadow();
+	UpdateMotorAudio(DeltaSeconds);
 	if (CVarShowCarDebug.GetValueOnGameThread() != 0)
 	{
 		ShowDebug();
@@ -371,6 +421,12 @@ void AFXRSlotCar::Deslot()
 	Chassis->SetPhysicsAngularVelocityInDegrees(GetActorTransform().TransformVectorNoScale(FVector(Turn * Spin, 0.0f, -Turn * Spin)));
 	UE_LOG(LogFXRCar, Log, TEXT("Car %d de-slotted at %.0f cm/s (lateral %.0f cm/s^2, distance %.0f)"),
 		Lane + 1, Model.Speed, Model.LateralAccel, Model.Distance);
+	if (DeslotSound)
+	{
+		// Louder and lower the faster it went off.
+		const float Impact = FMath::Clamp(Model.Speed / GetParams().TopSpeed, 0.3f, 1.0f);
+		UGameplayStatics::PlaySoundAtLocation(this, DeslotSound, GetActorLocation(), Impact, FMath::FRandRange(0.9f, 1.1f) * (1.15f - 0.25f * Impact), 0.0f, Attenuation);
+	}
 	Model.Speed = 0.0f;
 	OnDeslotted.Broadcast(this);
 }

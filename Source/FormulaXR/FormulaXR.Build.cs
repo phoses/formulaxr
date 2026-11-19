@@ -7,7 +7,7 @@ public class FormulaXR : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		PublicDependencyModuleNames.AddRange(new string[] {
-			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "HeadMountedDisplay", "XRBase", "ProceduralMeshComponent", "UMG", "Slate", "SlateCore"
+			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "HeadMountedDisplay", "XRBase", "ProceduralMeshComponent", "UMG", "Slate", "SlateCore", "RHI", "RenderCore"
 		});
 
 		// Meta XR (Plugins/MetaXR, see docs/plan.md §7) supplies the Quest passthrough layer.
