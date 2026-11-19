@@ -1,0 +1,20 @@
+# Unreal generated
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.VC.db
+
+# Packaged game, logs and screenshots (build.bat, automated checks)
+Build/
+
+# Third-party content that may not be redistributed in a public repository (see README):
+# the Fab "Toy Racing Car Low-poly PBR" (imported from your own Fab library by Scripts\setup.ps1)
+Content/Fab/
+SourceArt/
+# Meta XR plugin (copy it in yourself; see README)
+Plugins/MetaXR/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
